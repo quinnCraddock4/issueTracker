@@ -8,12 +8,16 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "start": "node ./dist/server/index.js"
+    "start": "node index.js"
   },
   "dependencies": {
+    "joi": "^17.13.3",
+    "bcrypt": "^6.0.0",
     "bootstrap": "^5.3.8",
+    "debug": "^4.4.3",
     "dotenv": "^17.2.1",
     "express": "^5.1.0",
+    "mongodb": "^6.20.0",
     "nanoid": "^5.1.5",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"

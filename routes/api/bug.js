@@ -1,94 +1,201 @@
-import express from 'express'
-const router = express.Router();
-
+import express from 'express';
 import debug from 'debug';
-import { nanoid } from 'nanoid';
+import { connect, newId } from '../../database.js';
+import { validate, validateObjectId } from '../../validation/middleware.js';
+import { createBugSchema, updateBugSchema, classifyBugSchema, assignBugSchema, closeBugSchema } from '../../validation/schemas.js';
+
+const router = express.Router();
 const debugBug = debug('app:BugRouter');
 
 router.use(express.urlencoded({ extended: false }));
 
-const bugsArray = [{assignedToUserId: 1,assignedToUsername:'bobby',title:'bug one',description:'this is the first bug',status:'open',classification:'bug',createdByUserId:1,createdAt:'2024-01-01T00:00:00Z',updatedAt:'2024-01-01T00:00:00Z'}];
-
-router.get('/list', (req, res) => {
-    res.json(bugsArray);
+// GET /api/bugs - Returns all bugs
+router.get('/', async (req, res, next) => {
+    try {
+        debugBug('Getting all bugs');
+        const db = await connect();
+        const bugs = await db.collection('bugs').find({}).toArray();
+        res.json(bugs);
+    } catch (err) {
+        next(err);
+    }
 });
 
-router.get('/:bugId', (req, res) => {
-    const id = parseInt(req.params.bugId, 10); // convert to number
-    const bug = bugsArray.find(b => b.bugId === id); // find by bugId
-    if (!bug) {
-        return res.status(404).json({ error: 'Bug not found' });
+// GET /api/bugs/:bugId - Returns specific bug by ID
+router.get('/:bugId', validateObjectId('bugId'), async (req, res, next) => {
+    try {
+        const { bugId } = req.params;
+        debugBug(`Getting bug with ID: ${bugId}`);
+
+        const db = await connect();
+        const bug = await db.collection('bugs').findOne({ _id: newId(bugId) });
+
+        if (!bug) {
+            return res.status(404).json({ error: `Bug ${bugId} not found.` });
+        }
+
+        res.json(bug);
+    } catch (err) {
+        next(err);
     }
-    res.json(bug);
-});
-router.put('/:bugId', (req, res) => {
-    const {title, description, stepsToReproduce} = req.body;
-    const id = parseInt(req.params.bugId, 10); // convert to number
-    const bug = bugsArray.find(b => b.bugId === id); // find by bugId
-    if (!bug) {
-        return res.status(404).json({ error: 'Bug not found' });
-    }
-    Object.assign(bug, {title, description, stepsToReproduce, updatedAt: new Date().toISOString()});
-    res.json({ message: 'Bug updated successfully', bug }).status(200);
 });
 
-router.post('/new', (req, res) => {
-       const {title, description, stepsToReproduce} = req.body;
-       if(!title || !description || !stepsToReproduce){
-        return res.status(400).json({ error: 'All fields are required' });
-       }
-         const newBug = {
-          bugId: nanoid(), // simple incrementing ID
-          title,
-          description,
-          stepsToReproduce,
-          status: 'open',
-          classification: 'bug',
-          createdByUserId: 1, // placeholder
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-         };
-            bugsArray.push(newBug);
-            res.status(200).json('New bug created!');
+// POST /api/bugs - Create new bug
+router.post('/', validate(createBugSchema), async (req, res, next) => {
+    try {
+        const { title, description, stepsToReproduce } = req.body;
+        debugBug('Creating new bug');
+
+        const db = await connect();
+
+        const newBug = {
+            title,
+            description,
+            stepsToReproduce,
+            status: 'open',
+            classification: 'unclassified',
+            createdAt: new Date()
+        };
+
+        const result = await db.collection('bugs').insertOne(newBug);
+        const bugId = result.insertedId.toString();
+
+        debugBug(`Bug created successfully with ID: ${bugId}`);
+        res.status(200).json({ message: "New bug reported!", bugId });
+    } catch (err) {
+        next(err);
+    }
 });
-router.put('/:bugId/classify', (req, res) => {
-    const { classification } = req.body;
-    const id = parseInt(req.params.bugId, 10); // convert to number
-    const bug = bugsArray.find(b => b.bugId === id); // find by bugId
-    if (!bug) {
-        return res.status(404).json({ error: 'Bug not found' });
+
+// PATCH /api/bugs/:bugId - Update bug
+router.patch('/:bugId', validateObjectId('bugId'), validate(updateBugSchema), async (req, res, next) => {
+    try {
+        const { bugId } = req.params;
+        const { title, description, stepsToReproduce } = req.body;
+        debugBug(`Updating bug with ID: ${bugId}`);
+
+        const db = await connect();
+        const bug = await db.collection('bugs').findOne({ _id: newId(bugId) });
+
+        if (!bug) {
+            return res.status(404).json({ error: `Bug ${bugId} not found.` });
+        }
+
+        // Build update object with only provided fields
+        const updateFields = {};
+        if (title) updateFields.title = title;
+        if (description) updateFields.description = description;
+        if (stepsToReproduce) updateFields.stepsToReproduce = stepsToReproduce;
+
+        updateFields.lastUpdated = new Date();
+
+        await db.collection('bugs').updateOne(
+            { _id: newId(bugId) },
+            { $set: updateFields }
+        );
+
+        debugBug(`Bug updated successfully with ID: ${bugId}`);
+        res.status(200).json({ message: `Bug ${bugId} updated!`, bugId });
+    } catch (err) {
+        next(err);
     }
-    if (!classification) {
-        return res.status(400).json({ error: 'Classification is required' });
-    }
-    Object.assign(bug, { classification, updatedAt: new Date().toISOString(), classifiedOn: new Date().toISOString() });
-    res.json({ message: 'Bug classified successfully', bug }).status(200);
 });
-router.put('/:bugId/assign', (req, res) => {
-    const { assignedToUserId, assignedToUsername } = req.body;
-    const id = parseInt(req.params.bugId, 10); // convert to number
-    const bug = bugsArray.find(b => b.bugId === id); // find by bugId
-    if (!bug) {
-        return res.status(404).json({ error: 'Bug not found' });
+
+// PATCH /api/bugs/:bugId/classify - Classify bug
+router.patch('/:bugId/classify', validateObjectId('bugId'), validate(classifyBugSchema), async (req, res, next) => {
+    try {
+        const { bugId } = req.params;
+        const { classification } = req.body;
+        debugBug(`Classifying bug with ID: ${bugId}`);
+
+        const db = await connect();
+        const bug = await db.collection('bugs').findOne({ _id: newId(bugId) });
+
+        if (!bug) {
+            return res.status(404).json({ error: `Bug ${bugId} not found.` });
+        }
+
+        const updateFields = {
+            classification,
+            classifiedOn: new Date(),
+            lastUpdated: new Date()
+        };
+
+        await db.collection('bugs').updateOne(
+            { _id: newId(bugId) },
+            { $set: updateFields }
+        );
+
+        debugBug(`Bug classified successfully with ID: ${bugId}`);
+        res.status(200).json({ message: `Bug ${bugId} classified!`, bugId });
+    } catch (err) {
+        next(err);
     }
-    if (!assignedToUserId || !assignedToUsername) {
-        return res.status(400).json({ error: 'Assigned user ID and username are required' });
-    }
-    Object.assign(bug, { assignedToUserId, assignedToUsername, updatedAt: new Date().toISOString(), assignedOn: new Date().toISOString() });
-    res.json({ message: 'Bug assigned successfully', bug }).status(200);
 });
-router.put('/:bugId/close', (req, res) => {
-    const {status} = req.body;
-    const id = parseInt(req.params.bugId, 10); // convert to number
-    const bug = bugsArray.find(b => b.bugId === id); // find by bugId
-    if (!bug) {
-        return res.status(404).json({ error: 'Bug not found' });
+
+// PATCH /api/bugs/:bugId/assign - Assign bug to user
+router.patch('/:bugId/assign', validateObjectId('bugId'), validate(assignBugSchema), async (req, res, next) => {
+    try {
+        const { bugId } = req.params;
+        const { assignedToUserId, assignedToUserName } = req.body;
+        debugBug(`Assigning bug with ID: ${bugId}`);
+
+        const db = await connect();
+        const bug = await db.collection('bugs').findOne({ _id: newId(bugId) });
+
+        if (!bug) {
+            return res.status(404).json({ error: `Bug ${bugId} not found.` });
+        }
+
+        const updateFields = {
+            assignedToUserId,
+            assignedToUserName,
+            assignedOn: new Date(),
+            lastUpdated: new Date()
+        };
+
+        await db.collection('bugs').updateOne(
+            { _id: newId(bugId) },
+            { $set: updateFields }
+        );
+
+        debugBug(`Bug assigned successfully with ID: ${bugId}`);
+        res.status(200).json({ message: `Bug ${bugId} assigned!`, bugId });
+    } catch (err) {
+        next(err);
     }
-    if (!status || (status !== 'closed' && status !== 'resolved')) {
-        return res.status(400).json({ error: 'Valid status is required (closed or resolved)' });
+});
+
+// PATCH /api/bugs/:bugId/close - Close bug
+router.patch('/:bugId/close', validateObjectId('bugId'), validate(closeBugSchema), async (req, res, next) => {
+    try {
+        const { bugId } = req.params;
+        const { closed } = req.body;
+        debugBug(`Closing bug with ID: ${bugId}`);
+
+        const db = await connect();
+        const bug = await db.collection('bugs').findOne({ _id: newId(bugId) });
+
+        if (!bug) {
+            return res.status(404).json({ error: `Bug ${bugId} not found.` });
+        }
+
+        const updateFields = {
+            closed,
+            closedOn: new Date(),
+            lastUpdated: new Date()
+        };
+
+        await db.collection('bugs').updateOne(
+            { _id: newId(bugId) },
+            { $set: updateFields }
+        );
+
+        debugBug(`Bug closed successfully with ID: ${bugId}`);
+        res.status(200).json({ message: `Bug ${bugId} closed!`, bugId });
+    } catch (err) {
+        next(err);
     }
-    Object.assign(bug, { status, updatedAt: new Date().toISOString(), closedOn: new Date().toISOString() });
-    res.json({ message: 'Bug status updated successfully', bug }).status(200);
 });
 
 export { router as bugRouter };
