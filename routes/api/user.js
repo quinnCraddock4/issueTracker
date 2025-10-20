@@ -10,7 +10,6 @@ const debugUser = debug('app:UserRouter');
 
 router.use(express.urlencoded({ extended: false }));
 
-// GET /api/users - Returns all users
 router.get('/', async (req, res, next) => {
     try {
         debugUser('Getting all users');
@@ -22,7 +21,6 @@ router.get('/', async (req, res, next) => {
     }
 });
 
-// GET /api/users/:userId - Returns specific user by ID
 router.get('/:userId', validateObjectId('userId'), async (req, res, next) => {
     try {
         const { userId } = req.params;
@@ -41,7 +39,6 @@ router.get('/:userId', validateObjectId('userId'), async (req, res, next) => {
     }
 });
 
-// POST /api/users/register - Register new user
 router.post('/register', validate(registerUserSchema), async (req, res, next) => {
     try {
         const { email, password, givenName, familyName, role } = req.body;
@@ -49,16 +46,13 @@ router.post('/register', validate(registerUserSchema), async (req, res, next) =>
 
         const db = await connect();
 
-        // Check if user already exists
         const existingUser = await db.collection('users').findOne({ email });
         if (existingUser) {
             return res.status(400).json({ error: "Email already registered." });
         }
 
-        // Hash password
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        // Create new user
         const fullName = `${givenName} ${familyName}`;
         const newUser = {
             email,
@@ -80,7 +74,6 @@ router.post('/register', validate(registerUserSchema), async (req, res, next) =>
     }
 });
 
-// POST /api/users/login - User login
 router.post('/login', validate(loginUserSchema), async (req, res, next) => {
     try {
         const { email, password } = req.body;
@@ -101,7 +94,6 @@ router.post('/login', validate(loginUserSchema), async (req, res, next) => {
     }
 });
 
-// PATCH /api/users/:userId - Update user
 router.patch('/:userId', validateObjectId('userId'), validate(updateUserSchema), async (req, res, next) => {
     try {
         const { userId } = req.params;
@@ -115,7 +107,6 @@ router.patch('/:userId', validateObjectId('userId'), validate(updateUserSchema),
             return res.status(404).json({ error: `User ${userId} not found.` });
         }
 
-        // Build update object with only provided fields
         const updateFields = {};
         if (password) updateFields.password = await bcrypt.hash(password, 10);
         if (fullName) updateFields.fullName = fullName;
@@ -137,7 +128,6 @@ router.patch('/:userId', validateObjectId('userId'), validate(updateUserSchema),
     }
 });
 
-// DELETE /api/users/:userId - Delete user
 router.delete('/:userId', validateObjectId('userId'), async (req, res, next) => {
     try {
         const { userId } = req.params;

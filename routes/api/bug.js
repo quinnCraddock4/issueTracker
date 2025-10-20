@@ -9,7 +9,6 @@ const debugBug = debug('app:BugRouter');
 
 router.use(express.urlencoded({ extended: false }));
 
-// GET /api/bugs - Returns all bugs
 router.get('/', async (req, res, next) => {
     try {
         debugBug('Getting all bugs');
@@ -21,7 +20,6 @@ router.get('/', async (req, res, next) => {
     }
 });
 
-// GET /api/bugs/:bugId - Returns specific bug by ID
 router.get('/:bugId', validateObjectId('bugId'), async (req, res, next) => {
     try {
         const { bugId } = req.params;
@@ -40,7 +38,6 @@ router.get('/:bugId', validateObjectId('bugId'), async (req, res, next) => {
     }
 });
 
-// POST /api/bugs - Create new bug
 router.post('/', validate(createBugSchema), async (req, res, next) => {
     try {
         const { title, description, stepsToReproduce } = req.body;
@@ -67,7 +64,6 @@ router.post('/', validate(createBugSchema), async (req, res, next) => {
     }
 });
 
-// PATCH /api/bugs/:bugId - Update bug
 router.patch('/:bugId', validateObjectId('bugId'), validate(updateBugSchema), async (req, res, next) => {
     try {
         const { bugId } = req.params;
@@ -81,7 +77,6 @@ router.patch('/:bugId', validateObjectId('bugId'), validate(updateBugSchema), as
             return res.status(404).json({ error: `Bug ${bugId} not found.` });
         }
 
-        // Build update object with only provided fields
         const updateFields = {};
         if (title) updateFields.title = title;
         if (description) updateFields.description = description;
@@ -101,7 +96,6 @@ router.patch('/:bugId', validateObjectId('bugId'), validate(updateBugSchema), as
     }
 });
 
-// PATCH /api/bugs/:bugId/classify - Classify bug
 router.patch('/:bugId/classify', validateObjectId('bugId'), validate(classifyBugSchema), async (req, res, next) => {
     try {
         const { bugId } = req.params;
@@ -133,7 +127,6 @@ router.patch('/:bugId/classify', validateObjectId('bugId'), validate(classifyBug
     }
 });
 
-// PATCH /api/bugs/:bugId/assign - Assign bug to user
 router.patch('/:bugId/assign', validateObjectId('bugId'), validate(assignBugSchema), async (req, res, next) => {
     try {
         const { bugId } = req.params;
@@ -166,7 +159,6 @@ router.patch('/:bugId/assign', validateObjectId('bugId'), validate(assignBugSche
     }
 });
 
-// PATCH /api/bugs/:bugId/close - Close bug
 router.patch('/:bugId/close', validateObjectId('bugId'), validate(closeBugSchema), async (req, res, next) => {
     try {
         const { bugId } = req.params;

@@ -50,3 +50,20 @@ export const assignBugSchema = Joi.object({
 export const closeBugSchema = Joi.object({
     closed: Joi.boolean().required()
 });
+
+// Comment validation schemas
+export const createCommentSchema = Joi.object({
+    author: Joi.string().required(),
+    content: Joi.string().required()
+});
+
+// Test case validation schemas
+export const createTestSchema = Joi.object({
+    title: Joi.string().required(),
+    description: Joi.string().required(),
+    expectedResult: Joi.string().required()
+});
+
+export const updateTestSchema = Joi.object({
+    status: Joi.string().valid('passed', 'failed').required()
+});
