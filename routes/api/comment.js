@@ -3,13 +3,16 @@ import debug from 'debug';
 import { connect, newId } from '../../database.js';
 import { validate, validateObjectId } from '../../validation/middleware.js';
 import { createCommentSchema } from '../../validation/schemas.js';
+import { authenticateToken, hasPermission } from '../../middleware/auth.js';
 
 const router = express.Router();
 const debugComment = debug('app:CommentRouter');
 
 router.use(express.urlencoded({ extended: false }));
 
-router.get('/:bugId/comments', validateObjectId('bugId'), async (req, res, next) => {
+router.use(authenticateToken);
+
+router.get('/:bugId/comments', validateObjectId('bugId'), hasPermission('canViewData'), async (req, res, next) => {
     try {
         const { bugId } = req.params;
         debugComment(`Getting comments for bug with ID: ${bugId}`);
@@ -28,7 +31,7 @@ router.get('/:bugId/comments', validateObjectId('bugId'), async (req, res, next)
     }
 });
 
-router.get('/:bugId/comments/:commentId', validateObjectId('bugId'), validateObjectId('commentId'), async (req, res, next) => {
+router.get('/:bugId/comments/:commentId', validateObjectId('bugId'), validateObjectId('commentId'), hasPermission('canViewData'), async (req, res, next) => {
     try {
         const { bugId, commentId } = req.params;
         debugComment(`Getting comment ${commentId} for bug ${bugId}`);
@@ -55,7 +58,7 @@ router.get('/:bugId/comments/:commentId', validateObjectId('bugId'), validateObj
     }
 });
 
-router.post('/:bugId/comments', validateObjectId('bugId'), validate(createCommentSchema), async (req, res, next) => {
+router.post('/:bugId/comments', validateObjectId('bugId'), validate(createCommentSchema), hasPermission('canAddComment'), async (req, res, next) => {
     try {
         const { bugId } = req.params;
         const { author, content } = req.body;

@@ -2,7 +2,10 @@ import express from 'express';
 import dotenv from 'dotenv'
 dotenv.config();
 import debug from 'debug';
+import cookieParser from 'cookie-parser';
+import cors from 'cors';
 import { userRouter } from './routes/api/user.js';
+import { authRouter } from './routes/api/auth.js';
 import { bugRouter } from './routes/api/bug.js';
 import { commentRouter } from './routes/api/comment.js';
 import { testRouter } from './routes/api/test.js';
@@ -11,9 +14,17 @@ const debugServer = debug('app:server');
 
 const app = express();
 
+app.use(cors({
+    origin: true,
+    credentials: true
+}));
+
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json())
+app.use(cookieParser());
 app.use(express.static('dist'))
+
+app.use('/api/auth', authRouter);
 
 app.use('/api/users', userRouter);
 app.use('/api/bugs', bugRouter);

@@ -3,24 +3,96 @@ import debug from 'debug';
 import { connect, newId } from '../../database.js';
 import { validate, validateObjectId } from '../../validation/middleware.js';
 import { createBugSchema, updateBugSchema, classifyBugSchema, assignBugSchema, closeBugSchema } from '../../validation/schemas.js';
+import { authenticateToken, createEditRecord, hasPermission, canEditBug, canClassifyBug, canReassignBug } from '../../middleware/auth.js';
 
 const router = express.Router();
 const debugBug = debug('app:BugRouter');
 
 router.use(express.urlencoded({ extended: false }));
 
-router.get('/', async (req, res, next) => {
+router.use(authenticateToken);
+
+router.get('/', hasPermission('canViewData'), async (req, res, next) => {
     try {
-        debugBug('Getting all bugs');
+        const { keywords, classification, maxAge, minAge, closed, sortBy, pageSize, pageNumber } = req.query;
+        debugBug('Getting bugs with search parameters');
+
         const db = await connect();
-        const bugs = await db.collection('bugs').find({}).toArray();
+        let query = {};
+
+        if (keywords) {
+            query.$text = { $search: keywords };
+        }
+
+        if (classification) {
+            query.classification = classification;
+        }
+
+        if (maxAge) {
+            const maxAgeDays = parseInt(maxAge);
+            const maxAgeDate = new Date();
+            maxAgeDate.setDate(maxAgeDate.getDate() - maxAgeDays);
+            query.createdOn = { $gte: maxAgeDate };
+        }
+
+        if (minAge) {
+            const minAgeDays = parseInt(minAge);
+            const minAgeDate = new Date();
+            minAgeDate.setDate(minAgeDate.getDate() - minAgeDays);
+            if (query.createdOn) {
+                query.createdOn.$lt = minAgeDate;
+            } else {
+                query.createdOn = { $lt: minAgeDate };
+            }
+        }
+
+        if (closed !== undefined) {
+            query.closed = closed === 'true';
+        }
+
+        let sort = {};
+        switch (sortBy) {
+            case 'newest':
+                sort = { createdOn: -1 };
+                break;
+            case 'oldest':
+                sort = { createdOn: 1 };
+                break;
+            case 'title':
+                sort = { title: 1, createdOn: -1 };
+                break;
+            case 'classification':
+                sort = { classification: 1, createdOn: -1 };
+                break;
+            case 'assignedTo':
+                sort = { assignedToUserName: 1, createdOn: -1 };
+                break;
+            case 'createdBy':
+                sort = { createdBy: 1, createdOn: -1 };
+                break;
+            default:
+                sort = { createdOn: -1 };
+        }
+
+        const pageSizeNum = parseInt(pageSize) || 5;
+        const pageNumberNum = parseInt(pageNumber) || 1;
+        const skip = (pageNumberNum - 1) * pageSizeNum;
+
+        const bugs = await db.collection('bugs')
+            .find(query)
+            .sort(sort)
+            .skip(skip)
+            .limit(pageSizeNum)
+            .toArray();
+
+        debugBug(`Found ${bugs.length} bugs`);
         res.json(bugs);
     } catch (err) {
         next(err);
     }
 });
 
-router.get('/:bugId', validateObjectId('bugId'), async (req, res, next) => {
+router.get('/:bugId', validateObjectId('bugId'), hasPermission('canViewData'), async (req, res, next) => {
     try {
         const { bugId } = req.params;
         debugBug(`Getting bug with ID: ${bugId}`);
@@ -38,7 +110,7 @@ router.get('/:bugId', validateObjectId('bugId'), async (req, res, next) => {
     }
 });
 
-router.post('/', validate(createBugSchema), async (req, res, next) => {
+router.post('/', validate(createBugSchema), hasPermission('canCreateBug'), async (req, res, next) => {
     try {
         const { title, description, stepsToReproduce } = req.body;
         debugBug('Creating new bug');
@@ -46,16 +118,21 @@ router.post('/', validate(createBugSchema), async (req, res, next) => {
         const db = await connect();
 
         const newBug = {
+            _id: newId(), // Generate new ID
             title,
             description,
             stepsToReproduce,
             status: 'open',
             classification: 'unclassified',
-            createdAt: new Date()
+            closed: false,
+            createdOn: new Date(),
+            createdBy: req.auth
         };
 
         const result = await db.collection('bugs').insertOne(newBug);
         const bugId = result.insertedId.toString();
+
+        await createEditRecord(req, 'bug', 'insert', { bugId }, newBug);
 
         debugBug(`Bug created successfully with ID: ${bugId}`);
         res.status(200).json({ message: "New bug reported!", bugId });
@@ -64,7 +141,7 @@ router.post('/', validate(createBugSchema), async (req, res, next) => {
     }
 });
 
-router.patch('/:bugId', validateObjectId('bugId'), validate(updateBugSchema), async (req, res, next) => {
+router.patch('/:bugId', validateObjectId('bugId'), validate(updateBugSchema), canEditBug, async (req, res, next) => {
     try {
         const { bugId } = req.params;
         const { title, description, stepsToReproduce } = req.body;
@@ -78,25 +155,43 @@ router.patch('/:bugId', validateObjectId('bugId'), validate(updateBugSchema), as
         }
 
         const updateFields = {};
-        if (title) updateFields.title = title;
-        if (description) updateFields.description = description;
-        if (stepsToReproduce) updateFields.stepsToReproduce = stepsToReproduce;
+        const changedFields = {};
 
-        updateFields.lastUpdated = new Date();
+        if (title) {
+            updateFields.title = title;
+            changedFields.title = title;
+        }
+        if (description) {
+            updateFields.description = description;
+            changedFields.description = description;
+        }
+        if (stepsToReproduce) {
+            updateFields.stepsToReproduce = stepsToReproduce;
+            changedFields.stepsToReproduce = stepsToReproduce;
+        }
 
-        await db.collection('bugs').updateOne(
-            { _id: newId(bugId) },
-            { $set: updateFields }
-        );
+        if (Object.keys(updateFields).length > 0) {
+            updateFields.lastUpdatedOn = new Date();
+            updateFields.lastUpdatedBy = req.auth;
 
-        debugBug(`Bug updated successfully with ID: ${bugId}`);
-        res.status(200).json({ message: `Bug ${bugId} updated!`, bugId });
+            await db.collection('bugs').updateOne(
+                { _id: newId(bugId) },
+                { $set: updateFields }
+            );
+
+            await createEditRecord(req, 'bug', 'update', { bugId }, changedFields);
+
+            debugBug(`Bug updated successfully with ID: ${bugId}`);
+            res.status(200).json({ message: `Bug ${bugId} updated!`, bugId });
+        } else {
+            res.status(400).json({ error: 'No fields to update' });
+        }
     } catch (err) {
         next(err);
     }
 });
 
-router.patch('/:bugId/classify', validateObjectId('bugId'), validate(classifyBugSchema), async (req, res, next) => {
+router.patch('/:bugId/classify', validateObjectId('bugId'), validate(classifyBugSchema), canClassifyBug, async (req, res, next) => {
     try {
         const { bugId } = req.params;
         const { classification } = req.body;
@@ -112,13 +207,23 @@ router.patch('/:bugId/classify', validateObjectId('bugId'), validate(classifyBug
         const updateFields = {
             classification,
             classifiedOn: new Date(),
-            lastUpdated: new Date()
+            classifiedBy: req.auth,
+            lastUpdatedOn: new Date(),
+            lastUpdatedBy: req.auth
+        };
+
+        const changedFields = {
+            classification,
+            classifiedOn: updateFields.classifiedOn,
+            classifiedBy: req.auth
         };
 
         await db.collection('bugs').updateOne(
             { _id: newId(bugId) },
             { $set: updateFields }
         );
+
+        await createEditRecord(req, 'bug', 'update', { bugId }, changedFields);
 
         debugBug(`Bug classified successfully with ID: ${bugId}`);
         res.status(200).json({ message: `Bug ${bugId} classified!`, bugId });
@@ -127,7 +232,7 @@ router.patch('/:bugId/classify', validateObjectId('bugId'), validate(classifyBug
     }
 });
 
-router.patch('/:bugId/assign', validateObjectId('bugId'), validate(assignBugSchema), async (req, res, next) => {
+router.patch('/:bugId/assign', validateObjectId('bugId'), validate(assignBugSchema), canReassignBug, async (req, res, next) => {
     try {
         const { bugId } = req.params;
         const { assignedToUserId, assignedToUserName } = req.body;
@@ -144,13 +249,24 @@ router.patch('/:bugId/assign', validateObjectId('bugId'), validate(assignBugSche
             assignedToUserId,
             assignedToUserName,
             assignedOn: new Date(),
-            lastUpdated: new Date()
+            assignedBy: req.auth,
+            lastUpdatedOn: new Date(),
+            lastUpdatedBy: req.auth
+        };
+
+        const changedFields = {
+            assignedToUserId,
+            assignedToUserName,
+            assignedOn: updateFields.assignedOn,
+            assignedBy: req.auth
         };
 
         await db.collection('bugs').updateOne(
             { _id: newId(bugId) },
             { $set: updateFields }
         );
+
+        await createEditRecord(req, 'bug', 'update', { bugId }, changedFields);
 
         debugBug(`Bug assigned successfully with ID: ${bugId}`);
         res.status(200).json({ message: `Bug ${bugId} assigned!`, bugId });
@@ -159,7 +275,7 @@ router.patch('/:bugId/assign', validateObjectId('bugId'), validate(assignBugSche
     }
 });
 
-router.patch('/:bugId/close', validateObjectId('bugId'), validate(closeBugSchema), async (req, res, next) => {
+router.patch('/:bugId/close', validateObjectId('bugId'), validate(closeBugSchema), hasPermission('canCloseAnyBug'), async (req, res, next) => {
     try {
         const { bugId } = req.params;
         const { closed } = req.body;
@@ -174,14 +290,32 @@ router.patch('/:bugId/close', validateObjectId('bugId'), validate(closeBugSchema
 
         const updateFields = {
             closed,
-            closedOn: new Date(),
-            lastUpdated: new Date()
+            lastUpdatedOn: new Date(),
+            lastUpdatedBy: req.auth
         };
+
+        const changedFields = {
+            closed
+        };
+
+        if (closed) {
+            updateFields.closedOn = new Date();
+            updateFields.closedBy = req.auth;
+            changedFields.closedOn = updateFields.closedOn;
+            changedFields.closedBy = req.auth;
+        } else {
+            updateFields.closedOn = null;
+            updateFields.closedBy = null;
+            changedFields.closedOn = null;
+            changedFields.closedBy = null;
+        }
 
         await db.collection('bugs').updateOne(
             { _id: newId(bugId) },
             { $set: updateFields }
         );
+
+        await createEditRecord(req, 'bug', 'update', { bugId }, changedFields);
 
         debugBug(`Bug closed successfully with ID: ${bugId}`);
         res.status(200).json({ message: `Bug ${bugId} closed!`, bugId });

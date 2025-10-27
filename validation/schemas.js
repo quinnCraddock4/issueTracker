@@ -1,15 +1,13 @@
 import Joi from 'joi';
 
-// Common validation schemas
 export const objectIdSchema = Joi.string().pattern(/^[0-9a-fA-F]{24}$/).required();
 
-// User validation schemas
 export const registerUserSchema = Joi.object({
     email: Joi.string().email().required(),
     password: Joi.string().min(6).required(),
     givenName: Joi.string().required(),
     familyName: Joi.string().required(),
-    role: Joi.string().valid('admin', 'user', 'developer', 'manager', 'tester').required()
+    role: Joi.array().items(Joi.string().valid('Developer', 'Business Analyst', 'Quality Analyst', 'Product Manager', 'Technical Manager')).optional()
 });
 
 export const loginUserSchema = Joi.object({
@@ -22,10 +20,9 @@ export const updateUserSchema = Joi.object({
     fullName: Joi.string().optional(),
     givenName: Joi.string().optional(),
     familyName: Joi.string().optional(),
-    role: Joi.string().valid('admin', 'user', 'developer', 'manager', 'tester').optional()
+    role: Joi.array().items(Joi.string().valid('Developer', 'Business Analyst', 'Quality Analyst', 'Product Manager', 'Technical Manager')).optional()
 }).min(1);
 
-// Bug validation schemas
 export const createBugSchema = Joi.object({
     title: Joi.string().required(),
     description: Joi.string().required(),
@@ -51,13 +48,11 @@ export const closeBugSchema = Joi.object({
     closed: Joi.boolean().required()
 });
 
-// Comment validation schemas
 export const createCommentSchema = Joi.object({
     author: Joi.string().required(),
     content: Joi.string().required()
 });
 
-// Test case validation schemas
 export const createTestSchema = Joi.object({
     title: Joi.string().required(),
     description: Joi.string().required(),
