@@ -47,7 +47,12 @@ router.get('/', hasPermission('canViewData'), async (req, res, next) => {
         }
 
         if (closed !== undefined) {
-            query.closed = closed === 'true';
+            // Handle both string and boolean values
+            if (typeof closed === 'string') {
+                query.closed = closed === 'true';
+            } else {
+                query.closed = Boolean(closed);
+            }
         }
 
         let sort = {};
@@ -68,7 +73,7 @@ router.get('/', hasPermission('canViewData'), async (req, res, next) => {
                 sort = { assignedToUserName: 1, createdOn: -1 };
                 break;
             case 'createdBy':
-                sort = { createdBy: 1, createdOn: -1 };
+                sort = { createdByUserName: 1, createdOn: -1 };
                 break;
             default:
                 sort = { createdOn: -1 };
@@ -117,6 +122,10 @@ router.post('/', validate(createBugSchema), hasPermission('canCreateBug'), async
 
         const db = await connect();
 
+        // Get user's full name for sorting
+        const user = await db.collection('users').findOne({ _id: newId(req.auth.userId) });
+        const createdByUserName = user ? (user.fullName || `${user.givenName || ''} ${user.familyName || ''}`.trim()) : '';
+
         const newBug = {
             _id: newId(), // Generate new ID
             title,
@@ -126,7 +135,8 @@ router.post('/', validate(createBugSchema), hasPermission('canCreateBug'), async
             classification: 'unclassified',
             closed: false,
             createdOn: new Date(),
-            createdBy: req.auth
+            createdBy: req.auth,
+            createdByUserName: createdByUserName
         };
 
         const result = await db.collection('bugs').insertOne(newBug);

@@ -8,7 +8,9 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "start": "node index.js"
+    "start": "node index.js",
+    "create-indexes": "node create-indexes.js",
+    "test:search": "node test-search-endpoints.js"
   },
   "dependencies": {
     "@radix-ui/react-label": "^2.1.7",

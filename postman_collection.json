@@ -1,0 +1,615 @@
+{
+	"info": {
+		"name": "Issue Tracker - Lab 03-04 Search Endpoints",
+		"description": "Collection for testing search, filter, sort, and pagination features",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "Register User",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"testuser@example.com\",\n  \"password\": \"password123\",\n  \"givenName\": \"John\",\n  \"familyName\": \"Doe\",\n  \"role\": [\"Developer\", \"Quality Analyst\"]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/sign-up/email",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "sign-up", "email"]
+						}
+					}
+				},
+				{
+					"name": "Login",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"testuser@example.com\",\n  \"password\": \"password123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/sign-in/email",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "sign-in", "email"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Users Endpoint",
+			"item": [
+				{
+					"name": "Get All Users (Default)",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/users",
+							"host": ["{{base_url}}"],
+							"path": ["users"]
+						}
+					}
+				},
+				{
+					"name": "Search by Keywords",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/users?keywords=John",
+							"host": ["{{base_url}}"],
+							"path": ["users"],
+							"query": [
+								{
+									"key": "keywords",
+									"value": "John"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Filter by Role",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/users?role=Developer",
+							"host": ["{{base_url}}"],
+							"path": ["users"],
+							"query": [
+								{
+									"key": "role",
+									"value": "Developer"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Filter by Max Age (30 days)",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/users?maxAge=30",
+							"host": ["{{base_url}}"],
+							"path": ["users"],
+							"query": [
+								{
+									"key": "maxAge",
+									"value": "30"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Filter by Min Age (7 days)",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/users?minAge=7",
+							"host": ["{{base_url}}"],
+							"path": ["users"],
+							"query": [
+								{
+									"key": "minAge",
+									"value": "7"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Sort by Given Name",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/users?sortBy=givenName",
+							"host": ["{{base_url}}"],
+							"path": ["users"],
+							"query": [
+								{
+									"key": "sortBy",
+									"value": "givenName"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Sort by Family Name",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/users?sortBy=familyName",
+							"host": ["{{base_url}}"],
+							"path": ["users"],
+							"query": [
+								{
+									"key": "sortBy",
+									"value": "familyName"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Sort by Role",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/users?sortBy=role",
+							"host": ["{{base_url}}"],
+							"path": ["users"],
+							"query": [
+								{
+									"key": "sortBy",
+									"value": "role"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Sort by Newest",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/users?sortBy=newest",
+							"host": ["{{base_url}}"],
+							"path": ["users"],
+							"query": [
+								{
+									"key": "sortBy",
+									"value": "newest"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Sort by Oldest",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/users?sortBy=oldest",
+							"host": ["{{base_url}}"],
+							"path": ["users"],
+							"query": [
+								{
+									"key": "sortBy",
+									"value": "oldest"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Pagination - Page Size",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/users?pageSize=10",
+							"host": ["{{base_url}}"],
+							"path": ["users"],
+							"query": [
+								{
+									"key": "pageSize",
+									"value": "10"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Pagination - Page Number",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/users?pageSize=5&pageNumber=2",
+							"host": ["{{base_url}}"],
+							"path": ["users"],
+							"query": [
+								{
+									"key": "pageSize",
+									"value": "5"
+								},
+								{
+									"key": "pageNumber",
+									"value": "2"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Combined Filters - All Parameters",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/users?keywords=test&role=Developer&maxAge=365&minAge=0&sortBy=familyName&pageSize=5&pageNumber=1",
+							"host": ["{{base_url}}"],
+							"path": ["users"],
+							"query": [
+								{
+									"key": "keywords",
+									"value": "test"
+								},
+								{
+									"key": "role",
+									"value": "Developer"
+								},
+								{
+									"key": "maxAge",
+									"value": "365"
+								},
+								{
+									"key": "minAge",
+									"value": "0"
+								},
+								{
+									"key": "sortBy",
+									"value": "familyName"
+								},
+								{
+									"key": "pageSize",
+									"value": "5"
+								},
+								{
+									"key": "pageNumber",
+									"value": "1"
+								}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Bugs Endpoint",
+			"item": [
+				{
+					"name": "Get All Bugs (Default)",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/bugs",
+							"host": ["{{base_url}}"],
+							"path": ["bugs"]
+						}
+					}
+				},
+				{
+					"name": "Search by Keywords",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/bugs?keywords=login",
+							"host": ["{{base_url}}"],
+							"path": ["bugs"],
+							"query": [
+								{
+									"key": "keywords",
+									"value": "login"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Filter by Classification",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/bugs?classification=bug",
+							"host": ["{{base_url}}"],
+							"path": ["bugs"],
+							"query": [
+								{
+									"key": "classification",
+									"value": "bug"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Filter by Max Age (30 days)",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/bugs?maxAge=30",
+							"host": ["{{base_url}}"],
+							"path": ["bugs"],
+							"query": [
+								{
+									"key": "maxAge",
+									"value": "30"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Filter by Min Age (7 days)",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/bugs?minAge=7",
+							"host": ["{{base_url}}"],
+							"path": ["bugs"],
+							"query": [
+								{
+									"key": "minAge",
+									"value": "7"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Filter Closed Bugs",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/bugs?closed=true",
+							"host": ["{{base_url}}"],
+							"path": ["bugs"],
+							"query": [
+								{
+									"key": "closed",
+									"value": "true"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Filter Open Bugs",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/bugs?closed=false",
+							"host": ["{{base_url}}"],
+							"path": ["bugs"],
+							"query": [
+								{
+									"key": "closed",
+									"value": "false"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Sort by Newest",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/bugs?sortBy=newest",
+							"host": ["{{base_url}}"],
+							"path": ["bugs"],
+							"query": [
+								{
+									"key": "sortBy",
+									"value": "newest"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Sort by Oldest",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/bugs?sortBy=oldest",
+							"host": ["{{base_url}}"],
+							"path": ["bugs"],
+							"query": [
+								{
+									"key": "sortBy",
+									"value": "oldest"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Sort by Title",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/bugs?sortBy=title",
+							"host": ["{{base_url}}"],
+							"path": ["bugs"],
+							"query": [
+								{
+									"key": "sortBy",
+									"value": "title"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Sort by Classification",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/bugs?sortBy=classification",
+							"host": ["{{base_url}}"],
+							"path": ["bugs"],
+							"query": [
+								{
+									"key": "sortBy",
+									"value": "classification"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Sort by Assigned To",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/bugs?sortBy=assignedTo",
+							"host": ["{{base_url}}"],
+							"path": ["bugs"],
+							"query": [
+								{
+									"key": "sortBy",
+									"value": "assignedTo"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Sort by Created By",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/bugs?sortBy=createdBy",
+							"host": ["{{base_url}}"],
+							"path": ["bugs"],
+							"query": [
+								{
+									"key": "sortBy",
+									"value": "createdBy"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Pagination - Page Size",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/bugs?pageSize=10",
+							"host": ["{{base_url}}"],
+							"path": ["bugs"],
+							"query": [
+								{
+									"key": "pageSize",
+									"value": "10"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Pagination - Page Number",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/bugs?pageSize=5&pageNumber=2",
+							"host": ["{{base_url}}"],
+							"path": ["bugs"],
+							"query": [
+								{
+									"key": "pageSize",
+									"value": "5"
+								},
+								{
+									"key": "pageNumber",
+									"value": "2"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Combined Filters - All Parameters",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/bugs?keywords=login&classification=bug&maxAge=365&minAge=0&closed=false&sortBy=newest&pageSize=5&pageNumber=1",
+							"host": ["{{base_url}}"],
+							"path": ["bugs"],
+							"query": [
+								{
+									"key": "keywords",
+									"value": "login"
+								},
+								{
+									"key": "classification",
+									"value": "bug"
+								},
+								{
+									"key": "maxAge",
+									"value": "365"
+								},
+								{
+									"key": "minAge",
+									"value": "0"
+								},
+								{
+									"key": "closed",
+									"value": "false"
+								},
+								{
+									"key": "sortBy",
+									"value": "newest"
+								},
+								{
+									"key": "pageSize",
+									"value": "5"
+								},
+								{
+									"key": "pageNumber",
+									"value": "1"
+								}
+							]
+						}
+					}
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:3000/api",
+			"type": "string"
+		}
+	]
+}
+
