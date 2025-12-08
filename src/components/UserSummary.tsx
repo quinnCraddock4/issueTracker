@@ -1,4 +1,6 @@
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import moment from 'moment';
+import { Link } from 'react-router-dom';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from './ui/card';
 
 export type User = {
   _id?: string;
@@ -12,53 +14,59 @@ export type User = {
 
 interface UserSummaryProps {
   user: User;
-  onClick?: () => void;
 }
 
-const UserSummary = ({ user, onClick }: UserSummaryProps) => {
-  const formatDate = (date?: Date | string) => {
-    if (!date) return 'N/A';
-    const d = typeof date === 'string' ? new Date(date) : date;
-    return d.toLocaleDateString();
-  };
-
+const UserSummary = ({ user }: UserSummaryProps) => {
   const displayName = user.fullName || `${user.givenName} ${user.familyName}`.trim();
+  
+  // Ensure role is always an array
+  const roles = Array.isArray(user.role) 
+    ? user.role 
+    : (user.role ? [user.role] : []);
 
   return (
-    <Card 
-      className="cursor-pointer hover:shadow-xl hover:scale-[1.02] transition-all duration-300 border-l-4 border-l-accent group animate-in fade-in slide-in-from-left-4"
-      onClick={onClick}
-    >
-      <CardHeader className="pb-3">
-        <CardTitle className="text-xl font-bold group-hover:text-accent transition-colors">
-          {displayName}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-3">
-          <p className="text-sm text-muted-foreground">{user.email}</p>
-          {user.role && user.role.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {user.role.map((role, index) => (
-                <span
-                  key={index}
-                  className="px-3 py-1.5 rounded-full bg-accent text-accent-foreground text-xs font-semibold shadow-sm transition-all hover:scale-110"
-                >
-                  {role}
+    <Link to={`/user/${user._id}`}>
+      <Card 
+        className="cursor-pointer hover:shadow-xl hover:scale-[1.02] transition-all duration-300 border-l-4 border-l-accent group animate-in fade-in slide-in-from-left-4 mb-3 bg-card relative z-10"
+      >
+        <CardHeader className="pb-3">
+          <CardTitle className="text-xl font-bold group-hover:text-accent transition-colors">
+            {displayName}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">{user.email}</p>
+            {roles.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {roles.map((role, index) => (
+                  <span
+                    key={index}
+                    className="px-3 py-1.5 rounded-full bg-primary text-primary-foreground text-xs font-semibold shadow-sm transition-all hover:scale-110"
+                  >
+                    {role}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                <span className="px-3 py-1.5 rounded-full bg-muted text-muted-foreground text-xs font-semibold shadow-sm transition-all hover:scale-110">
+                  No role
                 </span>
-              ))}
-            </div>
+              </div>
+            )}
+          </div>
+        </CardContent>
+        <CardFooter className="text-xs text-muted-foreground pt-2 border-t">
+          {user.createdOn ? (
+            <span>Registered {moment(user.createdOn).fromNow()}</span>
+          ) : (
+            <span>Registration date unknown</span>
           )}
-          {user.createdOn && (
-            <p className="text-xs text-muted-foreground pt-1">
-              Created: {formatDate(user.createdOn)}
-            </p>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+        </CardFooter>
+      </Card>
+    </Link>
   );
 };
 
 export default UserSummary;
-

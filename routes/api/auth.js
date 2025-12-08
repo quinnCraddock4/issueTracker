@@ -26,8 +26,11 @@ router.post('/sign-up/email', validate(registerUserSchema), async (req, res, nex
         const hashedPassword = await bcrypt.hash(password, 10);
         const fullName = `${givenName} ${familyName}`;
 
-        // Ensure role is always an array
-        const normalizedRole = Array.isArray(role) ? role : (role ? [role] : []);
+        // Ensure role is always an array, default to Developer if no role provided
+        let normalizedRole = Array.isArray(role) ? role : (role ? [role] : []);
+        if (normalizedRole.length === 0) {
+            normalizedRole = ['Developer']; // Assign default role
+        }
 
         const newUser = {
             email,
@@ -49,14 +52,17 @@ router.post('/sign-up/email', validate(registerUserSchema), async (req, res, nex
         res.cookie('sessionId', sessionId, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
-            maxAge: 24 * 60 * 60 * 1000
+            sameSite: 'lax',
+            maxAge: 24 * 60 * 60 * 1000,
+            path: '/'
         });
 
         debugAuth(`User registered successfully with ID: ${userId}`);
         res.status(200).json({
             message: "New user registered!",
-            userId
+            userId,
+            email: newUser.email,
+            role: normalizedRole
         });
     } catch (err) {
         next(err);
@@ -81,14 +87,17 @@ router.post('/sign-in/email', validate(loginUserSchema), async (req, res, next) 
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
             sameSite: 'lax',
-            maxAge: 24 * 60 * 60 * 1000
+            maxAge: 24 * 60 * 60 * 1000,
+            path: '/'
         });
 
         const userId = user._id.toString();
         debugAuth(`User logged in successfully with ID: ${userId}`);
         res.status(200).json({
             message: "Welcome back!",
-            userId
+            userId,
+            email: user.email,
+            role: user.role || []
         });
     } catch (err) {
         next(err);
@@ -103,7 +112,12 @@ router.post('/sign-out', async (req, res, next) => {
             await deleteSession(sessionId);
         }
 
-        res.clearCookie('sessionId');
+        res.clearCookie('sessionId', {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
+            path: '/'
+        });
 
         debugAuth('User signed out successfully');
         res.status(200).json({ message: "Signed out successfully" });

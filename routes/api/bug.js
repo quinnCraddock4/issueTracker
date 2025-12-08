@@ -127,7 +127,6 @@ router.post('/', validate(createBugSchema), hasPermission('canCreateBug'), async
         const createdByUserName = user ? (user.fullName || `${user.givenName || ''} ${user.familyName || ''}`.trim()) : '';
 
         const newBug = {
-            _id: newId(), // Generate new ID
             title,
             description,
             stepsToReproduce,
