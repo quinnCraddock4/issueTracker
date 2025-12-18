@@ -18,10 +18,10 @@ const ROLE_OPTIONS = [
   'Technical Manager',
 ];
 
+// Validation schema for user updates - email is not editable so we don't validate it
 const userSchema = z.object({
-  email: z.string().email('Email must be a valid email address').min(1, 'Email is required'),
-  password: z.string().optional().refine((val) => !val || val.length >= 8, {
-    message: 'Password must be at least 8 characters long if provided',
+  password: z.string().optional().refine((val) => !val || val.length >= 6, {
+    message: 'Password must be at least 6 characters long if provided',
   }),
   givenName: z.string().min(1, 'Given name is required'),
   familyName: z.string().min(1, 'Family name is required'),
@@ -47,7 +47,6 @@ const UserEditor = ({ auth, showError, showSuccess }: UserEditorProps) => {
   const [familyName, setFamilyName] = useState('');
   const [fullName, setFullName] = useState('');
   const [role, setRole] = useState<string[]>([]);
-  const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [givenNameError, setGivenNameError] = useState('');
   const [familyNameError, setFamilyNameError] = useState('');
@@ -81,7 +80,13 @@ const UserEditor = ({ auth, showError, showSuccess }: UserEditorProps) => {
           if (typeof err.response.data.error === 'string') {
             errorMessage = err.response.data.error;
           } else if (err.response.data.error?.details) {
-            errorMessage = err.response.data.error.details;
+            // Extract error messages from Joi validation details array
+            const details = err.response.data.error.details;
+            if (Array.isArray(details)) {
+              errorMessage = details.map((d: any) => d.message).join('; ');
+            } else {
+              errorMessage = String(details);
+            }
           }
         } else if (err.message) {
           errorMessage = err.message;
@@ -107,16 +112,18 @@ const UserEditor = ({ auth, showError, showSuccess }: UserEditorProps) => {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    console.log('handleSubmit called');
+    console.log('Form values:', { givenName, familyName, fullName, email, role, password: !!password });
     
-    setEmailError('');
+    // Clear all errors
     setPasswordError('');
     setGivenNameError('');
     setFamilyNameError('');
     setFullNameError('');
     setError('');
 
+    // Client-side validation (email is not validated since it's not editable)
     const result = userSchema.safeParse({
-      email,
       password: password || undefined,
       givenName,
       familyName,
@@ -124,12 +131,14 @@ const UserEditor = ({ auth, showError, showSuccess }: UserEditorProps) => {
       role,
     });
 
+    console.log('Validation result:', result.success, result.error?.issues);
+
     if (!result.success) {
+      console.log('Validation failed:', result.error.issues);
       result.error.issues.forEach((err) => {
         const field = err.path[0] as string;
-        if (field === 'email') {
-          setEmailError(err.message);
-        } else if (field === 'password') {
+        console.log(`Setting error for field ${field}:`, err.message);
+        if (field === 'password') {
           setPasswordError(err.message);
         } else if (field === 'givenName') {
           setGivenNameError(err.message);
@@ -142,44 +151,82 @@ const UserEditor = ({ auth, showError, showSuccess }: UserEditorProps) => {
       return;
     }
 
+    console.log('Validation passed, proceeding with update');
+
     if (!userId) {
       setError('User ID is missing');
+      showError('User ID is missing');
       return;
     }
 
     try {
-      const updateData: any = {
-        email,
-        givenName,
-        familyName,
-        fullName,
-        role: role.length > 0 ? role : []
-      };
-
-      if (password) {
+      // Build update data object - send all editable fields
+      const updateData: any = {};
+      
+      // Always send these fields if they have values (validation ensures they're not empty)
+      if (givenName.trim()) {
+        updateData.givenName = givenName.trim();
+      }
+      if (familyName.trim()) {
+        updateData.familyName = familyName.trim();
+      }
+      if (fullName.trim()) {
+        updateData.fullName = fullName.trim();
+      }
+      // Password is optional - only send if provided
+      if (password && password.trim()) {
         updateData.password = password;
       }
+      // Role - filter to only include valid roles that match backend schema
+      const validRoles = ['Developer', 'Business Analyst', 'Quality Analyst', 'Product Manager', 'Technical Manager'];
+      if (Array.isArray(role)) {
+        updateData.role = role.filter(r => validRoles.includes(r));
+      } else {
+        updateData.role = [];
+      }
 
-      await axios.patch(`${API_URL}/users/${userId}`, updateData, {
+      console.log('Sending update request:', { userId, updateData, apiUrl: `${API_URL}/users/${userId}` });
+
+      const response = await axios.patch(`${API_URL}/users/${userId}`, updateData, {
         withCredentials: true
       });
+
+      console.log('Update response:', response.data);
 
       showSuccess('User updated successfully!');
       setError('');
       navigate('/user/list');
     } catch (err: any) {
+      console.error('Update error:', err);
+      console.error('Error response:', err?.response?.data);
+      console.error('Error response error object:', err?.response?.data?.error);
+      
       let errorMessage = 'Failed to update user';
       
       if (err?.response?.data?.error) {
-        if (typeof err.response.data.error === 'string') {
-          errorMessage = err.response.data.error;
-        } else if (err.response.data.error?.details) {
-          errorMessage = err.response.data.error.details;
+        const errorObj = err.response.data.error;
+        console.error('Error object type:', typeof errorObj);
+        console.error('Error object:', JSON.stringify(errorObj, null, 2));
+        
+        if (typeof errorObj === 'string') {
+          errorMessage = errorObj;
+        } else if (errorObj?.details) {
+          // Extract error messages from Joi validation details array
+          const details = errorObj.details;
+          console.error('Error details:', details);
+          if (Array.isArray(details)) {
+            errorMessage = details.map((d: any) => d.message).join('; ');
+          } else {
+            errorMessage = String(details);
+          }
+        } else if (errorObj?.message) {
+          errorMessage = errorObj.message;
         }
       } else if (err.message) {
         errorMessage = err.message;
       }
 
+      console.error('Final error message:', errorMessage);
       setError(errorMessage);
       showError(errorMessage);
     }
@@ -227,11 +274,12 @@ const UserEditor = ({ auth, showError, showSuccess }: UserEditorProps) => {
               id="email"
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              readOnly
+              disabled
               placeholder="Enter email"
-              className={emailError ? 'border-red-500' : ''}
+              className="bg-gray-100 dark:bg-gray-800 cursor-not-allowed"
             />
-            {emailError && <p className="text-sm text-red-500">{emailError}</p>}
+            <p className="text-xs text-gray-500 dark:text-gray-400">Email cannot be changed</p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="password">Password</Label>
@@ -301,7 +349,15 @@ const UserEditor = ({ auth, showError, showSuccess }: UserEditorProps) => {
             </div>
           </div>
           <div className="flex gap-2">
-            <Button type="submit">Save</Button>
+            <Button 
+              type="submit"
+              onClick={() => {
+                console.log('Save button clicked');
+                // Form onSubmit will handle the submission
+              }}
+            >
+              Save
+            </Button>
             <Button type="button" variant="outline" onClick={() => navigate('/user/list')}>
               Cancel
             </Button>

@@ -198,6 +198,7 @@ router.patch('/:userId', validateObjectId('userId'), validate(updateUserSchema),
         const { userId } = req.params;
         const { password, fullName, givenName, familyName, role } = req.body;
         debugUser(`Updating user with ID: ${userId}`);
+        debugUser(`Received update data:`, { fullName, givenName, familyName, role: role !== undefined, password: !!password });
 
         const db = await connect();
         const user = await db.collection('users').findOne({ _id: newId(userId) });
@@ -213,17 +214,18 @@ router.patch('/:userId', validateObjectId('userId'), validate(updateUserSchema),
             updateFields.password = await bcrypt.hash(password, 10);
             changedFields.password = '[HASHED]';
         }
-        if (fullName) {
-            updateFields.fullName = fullName;
-            changedFields.fullName = fullName;
+        // Check for undefined/null and non-empty strings
+        if (fullName !== undefined && fullName !== null && String(fullName).trim() !== '') {
+            updateFields.fullName = String(fullName).trim();
+            changedFields.fullName = String(fullName).trim();
         }
-        if (givenName) {
-            updateFields.givenName = givenName;
-            changedFields.givenName = givenName;
+        if (givenName !== undefined && givenName !== null && String(givenName).trim() !== '') {
+            updateFields.givenName = String(givenName).trim();
+            changedFields.givenName = String(givenName).trim();
         }
-        if (familyName) {
-            updateFields.familyName = familyName;
-            changedFields.familyName = familyName;
+        if (familyName !== undefined && familyName !== null && String(familyName).trim() !== '') {
+            updateFields.familyName = String(familyName).trim();
+            changedFields.familyName = String(familyName).trim();
         }
         if (role !== undefined) {
             // Ensure role is always an array
@@ -231,6 +233,8 @@ router.patch('/:userId', validateObjectId('userId'), validate(updateUserSchema),
             updateFields.role = normalizedRole;
             changedFields.role = normalizedRole;
         }
+
+        debugUser(`Fields to update:`, Object.keys(updateFields));
 
         if (Object.keys(updateFields).length > 0) {
             updateFields.lastUpdatedOn = new Date();

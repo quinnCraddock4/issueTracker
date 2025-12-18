@@ -3,7 +3,7 @@ import { useParams, useNavigate, Navigate as NavigateComponent } from 'react-rou
 import axios from 'axios';
 import { z } from 'zod';
 import moment from 'moment';
-import { Save, User, DoorOpen, DoorClosed } from 'lucide-react';
+import { Save, User, DoorOpen, DoorClosed, Clock, Code } from 'lucide-react';
 import type { Bug } from './BugSummary';
 import type { User as UserType } from './UserSummary';
 import { Button } from './ui/button';
@@ -27,6 +27,18 @@ interface Comment {
   author: string;
   content: string;
   createdAt: string | Date;
+}
+
+interface TimeEntry {
+  _id: string;
+  bugId: string;
+  hours: number;
+  description?: string;
+  createdAt: string | Date;
+  createdBy: {
+    userId: string;
+    email: string;
+  };
 }
 
 interface BugEditorProps {
@@ -65,6 +77,17 @@ const BugEditor = ({ auth, showError, showSuccess }: BugEditorProps) => {
   // Status
   const [status, setStatus] = useState('');
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  
+  // Time Tracking
+  const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
+  const [timeHours, setTimeHours] = useState('');
+  const [timeDescription, setTimeDescription] = useState('');
+  const [submittingTime, setSubmittingTime] = useState(false);
+  
+  // Version/Fix Date
+  const [version, setVersion] = useState('');
+  const [fixDate, setFixDate] = useState('');
+  const [updatingVersion, setUpdatingVersion] = useState(false);
 
   useEffect(() => {
     const fetchBug = async () => {
@@ -76,10 +99,11 @@ const BugEditor = ({ auth, showError, showSuccess }: BugEditorProps) => {
       try {
         setLoading(true);
         setError('');
-        const [bugResponse, commentsResponse, usersResponse] = await Promise.all([
+        const [bugResponse, commentsResponse, usersResponse, timeEntriesResponse] = await Promise.all([
           axios.get(`${API_URL}/bugs/${bugId}`, { withCredentials: true }),
           axios.get(`${API_URL}/bugs/${bugId}/comments`, { withCredentials: true }),
-          axios.get(`${API_URL}/users`, { withCredentials: true })
+          axios.get(`${API_URL}/users`, { withCredentials: true }),
+          axios.get(`${API_URL}/bugs/${bugId}/time`, { withCredentials: true }).catch(() => ({ data: [] }))
         ]);
         
         const bugData = bugResponse.data;
@@ -90,6 +114,8 @@ const BugEditor = ({ auth, showError, showSuccess }: BugEditorProps) => {
         setClassification(bugData.classification || 'unclassified');
         setStatus(bugData.closed ? 'closed' : 'open');
         setAssignedToUserId(bugData.assignedTo?.userId || '');
+        setVersion(bugData.version || '');
+        setFixDate(bugData.fixDate ? new Date(bugData.fixDate).toISOString().split('T')[0] : '');
         
         // Sort comments oldest to newest
         const sortedComments = (commentsResponse.data || []).sort((a: Comment, b: Comment) => {
@@ -100,6 +126,7 @@ const BugEditor = ({ auth, showError, showSuccess }: BugEditorProps) => {
         setComments(sortedComments);
         
         setUsers(usersResponse.data || []);
+        setTimeEntries(timeEntriesResponse.data || []);
       } catch (err: any) {
         let errorMessage = 'Failed to load bug';
         
@@ -107,7 +134,13 @@ const BugEditor = ({ auth, showError, showSuccess }: BugEditorProps) => {
           if (typeof err.response.data.error === 'string') {
             errorMessage = err.response.data.error;
           } else if (err.response.data.error?.details) {
-            errorMessage = err.response.data.error.details;
+            // Extract error messages from Joi validation details array
+            const details = err.response.data.error.details;
+            if (Array.isArray(details)) {
+              errorMessage = details.map((d: any) => d.message).join('; ');
+            } else {
+              errorMessage = String(details);
+            }
           }
         } else if (err.message) {
           errorMessage = err.message;
@@ -179,7 +212,13 @@ const BugEditor = ({ auth, showError, showSuccess }: BugEditorProps) => {
         if (typeof err.response.data.error === 'string') {
           errorMessage = err.response.data.error;
         } else if (err.response.data.error?.details) {
-          errorMessage = err.response.data.error.details;
+          // Extract error messages from Joi validation details array
+          const details = err.response.data.error.details;
+          if (Array.isArray(details)) {
+            errorMessage = details.map((d: any) => d.message).join('; ');
+          } else {
+            errorMessage = String(details);
+          }
         }
       } else if (err.message) {
         errorMessage = err.message;
@@ -219,9 +258,15 @@ const BugEditor = ({ auth, showError, showSuccess }: BugEditorProps) => {
     } catch (err: any) {
       let errorMessage = 'Failed to post comment';
       if (err?.response?.data?.error) {
-        errorMessage = typeof err.response.data.error === 'string' 
-          ? err.response.data.error 
-          : err.response.data.error?.details || errorMessage;
+        if (typeof err.response.data.error === 'string') {
+          errorMessage = err.response.data.error;
+        } else if (err.response.data.error?.details) {
+          // Extract error messages from Joi validation details array
+          const details = err.response.data.error.details;
+          errorMessage = Array.isArray(details) 
+            ? details.map((d: any) => d.message).join('; ')
+            : String(details);
+        }
       }
       showError(errorMessage);
     } finally {
@@ -248,9 +293,15 @@ const BugEditor = ({ auth, showError, showSuccess }: BugEditorProps) => {
     } catch (err: any) {
       let errorMessage = 'Failed to classify bug';
       if (err?.response?.data?.error) {
-        errorMessage = typeof err.response.data.error === 'string' 
-          ? err.response.data.error 
-          : err.response.data.error?.details || errorMessage;
+        if (typeof err.response.data.error === 'string') {
+          errorMessage = err.response.data.error;
+        } else if (err.response.data.error?.details) {
+          // Extract error messages from Joi validation details array
+          const details = err.response.data.error.details;
+          errorMessage = Array.isArray(details) 
+            ? details.map((d: any) => d.message).join('; ')
+            : String(details);
+        }
       }
       showError(errorMessage);
     } finally {
@@ -280,9 +331,15 @@ const BugEditor = ({ auth, showError, showSuccess }: BugEditorProps) => {
     } catch (err: any) {
       let errorMessage = 'Failed to assign bug';
       if (err?.response?.data?.error) {
-        errorMessage = typeof err.response.data.error === 'string' 
-          ? err.response.data.error 
-          : err.response.data.error?.details || errorMessage;
+        if (typeof err.response.data.error === 'string') {
+          errorMessage = err.response.data.error;
+        } else if (err.response.data.error?.details) {
+          // Extract error messages from Joi validation details array
+          const details = err.response.data.error.details;
+          errorMessage = Array.isArray(details) 
+            ? details.map((d: any) => d.message).join('; ')
+            : String(details);
+        }
       }
       showError(errorMessage);
     } finally {
@@ -310,15 +367,106 @@ const BugEditor = ({ auth, showError, showSuccess }: BugEditorProps) => {
     } catch (err: any) {
       let errorMessage = 'Failed to update bug status';
       if (err?.response?.data?.error) {
-        errorMessage = typeof err.response.data.error === 'string' 
-          ? err.response.data.error 
-          : err.response.data.error?.details || errorMessage;
+        if (typeof err.response.data.error === 'string') {
+          errorMessage = err.response.data.error;
+        } else if (err.response.data.error?.details) {
+          // Extract error messages from Joi validation details array
+          const details = err.response.data.error.details;
+          errorMessage = Array.isArray(details) 
+            ? details.map((d: any) => d.message).join('; ')
+            : String(details);
+        }
       }
       showError(errorMessage);
     } finally {
       setUpdatingStatus(false);
     }
   };
+
+  const handleSubmitTime = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!bugId || !timeHours || parseFloat(timeHours) <= 0) return;
+
+    setSubmittingTime(true);
+    try {
+      await axios.post(`${API_URL}/bugs/${bugId}/time`, {
+        hours: parseFloat(timeHours),
+        description: timeDescription
+      }, {
+        withCredentials: true
+      });
+
+      setTimeHours('');
+      setTimeDescription('');
+      showSuccess('Time entry added successfully!');
+      
+      // Refresh time entries
+      const response = await axios.get(`${API_URL}/bugs/${bugId}/time`, {
+        withCredentials: true
+      });
+      setTimeEntries(response.data || []);
+    } catch (err: any) {
+      let errorMessage = 'Failed to submit time entry';
+      if (err?.response?.data?.error) {
+        if (typeof err.response.data.error === 'string') {
+          errorMessage = err.response.data.error;
+        } else if (err.response.data.error?.details) {
+          // Extract error messages from Joi validation details array
+          const details = err.response.data.error.details;
+          errorMessage = Array.isArray(details) 
+            ? details.map((d: any) => d.message).join('; ')
+            : String(details);
+        }
+      }
+      showError(errorMessage);
+    } finally {
+      setSubmittingTime(false);
+    }
+  };
+
+  const handleUpdateVersion = async () => {
+    if (!bugId) return;
+
+    setUpdatingVersion(true);
+    try {
+      await axios.patch(`${API_URL}/bugs/${bugId}/version`, {
+        version: version || null,
+        fixDate: fixDate || null
+      }, {
+        withCredentials: true
+      });
+
+      showSuccess('Version and fix date updated!');
+      const response = await axios.get(`${API_URL}/bugs/${bugId}`, {
+        withCredentials: true
+      });
+      setBug(response.data);
+      setVersion(response.data.version || '');
+      setFixDate(response.data.fixDate ? new Date(response.data.fixDate).toISOString().split('T')[0] : '');
+    } catch (err: any) {
+      let errorMessage = 'Failed to update version/fix date';
+      if (err?.response?.data?.error) {
+        if (typeof err.response.data.error === 'string') {
+          errorMessage = err.response.data.error;
+        } else if (err.response.data.error?.details) {
+          // Extract error messages from Joi validation details array
+          const details = err.response.data.error.details;
+          errorMessage = Array.isArray(details) 
+            ? details.map((d: any) => d.message).join('; ')
+            : String(details);
+        }
+      }
+      showError(errorMessage);
+    } finally {
+      setUpdatingVersion(false);
+    }
+  };
+
+  const isDeveloper = auth?.role && (
+    Array.isArray(auth.role) 
+      ? auth.role.includes('Developer')
+      : auth.role === 'Developer'
+  );
 
   if (!auth) {
     return <NavigateComponent to="/login" replace />;
@@ -483,6 +631,125 @@ const BugEditor = ({ auth, showError, showSuccess }: BugEditorProps) => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Time Tracking Section - Only for Developers */}
+      {isDeveloper && (
+        <Card className="w-full max-w-2xl mx-auto shadow-lg border-2 bg-card relative z-10">
+          <CardHeader>
+            <CardTitle>Time Tracking</CardTitle>
+            <CardDescription>Track hours spent on this bug</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Submit Time Form */}
+            <form onSubmit={handleSubmitTime} className="space-y-3">
+              <div className="flex items-center space-x-2">
+                <div className="flex-1">
+                  <Label htmlFor="timeHours">Hours</Label>
+                  <Input
+                    id="timeHours"
+                    type="number"
+                    step="0.25"
+                    min="0"
+                    placeholder="0.0"
+                    value={timeHours}
+                    onChange={(e) => setTimeHours(e.target.value)}
+                    required
+                    className="w-full"
+                  />
+                </div>
+                <div className="flex-1">
+                  <Label htmlFor="timeDescription">Description (optional)</Label>
+                  <Input
+                    id="timeDescription"
+                    type="text"
+                    placeholder="What did you work on?"
+                    value={timeDescription}
+                    onChange={(e) => setTimeDescription(e.target.value)}
+                    className="w-full"
+                  />
+                </div>
+                <div className="flex items-end">
+                  <Button type="submit" disabled={submittingTime || !timeHours || parseFloat(timeHours) <= 0}>
+                    <Clock className="mr-2 h-4 w-4" /> Submit
+                  </Button>
+                </div>
+              </div>
+            </form>
+
+            {/* Time Entries List */}
+            <div className="space-y-2">
+              <h4 className="font-semibold text-sm">Time Entries</h4>
+              {timeEntries.length === 0 ? (
+                <p className="text-muted-foreground text-sm">No time entries yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {timeEntries.map((entry) => (
+                    <div key={entry._id} className="border-b pb-2 last:border-0">
+                      <div className="flex justify-between items-start mb-1">
+                        <div>
+                          <span className="font-semibold text-sm">{entry.hours} hours</span>
+                          {entry.description && (
+                            <p className="text-xs text-muted-foreground mt-1">{entry.description}</p>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <span className="text-xs text-muted-foreground block">
+                            {entry.createdBy?.email || 'Unknown'}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {moment(entry.createdAt).format('MMM D, YYYY h:mm A')}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  <div className="pt-2 border-t">
+                    <p className="text-sm font-semibold">
+                      Total: {timeEntries.reduce((sum, entry) => sum + entry.hours, 0).toFixed(2)} hours
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Version/Fix Date Section - Only for Developers */}
+      {isDeveloper && (
+        <Card className="w-full max-w-2xl mx-auto shadow-lg border-2 bg-card relative z-10">
+          <CardHeader>
+            <CardTitle>Version & Fix Date</CardTitle>
+            <CardDescription>Track software version and fix date</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="version">Software Version</Label>
+                <Input
+                  id="version"
+                  type="text"
+                  placeholder="e.g., 1.2.3"
+                  value={version}
+                  onChange={(e) => setVersion(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="fixDate">Fix Date</Label>
+                <Input
+                  id="fixDate"
+                  type="date"
+                  value={fixDate}
+                  onChange={(e) => setFixDate(e.target.value)}
+                />
+              </div>
+            </div>
+            <Button onClick={handleUpdateVersion} disabled={updatingVersion}>
+              <Code className="mr-2 h-4 w-4" /> Update
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Comments Section */}
       <Card className="w-full max-w-2xl mx-auto shadow-lg border-2 bg-card relative z-10">

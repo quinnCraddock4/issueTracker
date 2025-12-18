@@ -81,7 +81,13 @@ const ReportBug = ({ auth, showError, showSuccess }: ReportBugProps) => {
         if (typeof err.response.data.error === 'string') {
           errorMessage = err.response.data.error;
         } else if (err.response.data.error?.details) {
-          errorMessage = err.response.data.error.details;
+          // Extract error messages from Joi validation details array
+          const details = err.response.data.error.details;
+          if (Array.isArray(details)) {
+            errorMessage = details.map((d: any) => d.message).join('; ');
+          } else {
+            errorMessage = String(details);
+          }
         }
       } else if (err.message) {
         errorMessage = err.message;

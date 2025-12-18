@@ -2,7 +2,7 @@ import express from 'express';
 import debug from 'debug';
 import { connect, newId } from '../../database.js';
 import { validate, validateObjectId } from '../../validation/middleware.js';
-import { createBugSchema, updateBugSchema, classifyBugSchema, assignBugSchema, closeBugSchema } from '../../validation/schemas.js';
+import { createBugSchema, updateBugSchema, classifyBugSchema, assignBugSchema, closeBugSchema, updateBugVersionSchema } from '../../validation/schemas.js';
 import { authenticateToken, createEditRecord, hasPermission, canEditBug, canClassifyBug, canReassignBug } from '../../middleware/auth.js';
 
 const router = express.Router();
@@ -328,6 +328,50 @@ router.patch('/:bugId/close', validateObjectId('bugId'), validate(closeBugSchema
 
         debugBug(`Bug closed successfully with ID: ${bugId}`);
         res.status(200).json({ message: `Bug ${bugId} closed!`, bugId });
+    } catch (err) {
+        next(err);
+    }
+});
+
+router.patch('/:bugId/version', validateObjectId('bugId'), validate(updateBugVersionSchema), hasPermission('canTrackTime'), async (req, res, next) => {
+    try {
+        const { bugId } = req.params;
+        const { version, fixDate } = req.body;
+        debugBug(`Updating version/fix date for bug with ID: ${bugId}`);
+
+        const db = await connect();
+        const bug = await db.collection('bugs').findOne({ _id: newId(bugId) });
+
+        if (!bug) {
+            return res.status(404).json({ error: `Bug ${bugId} not found.` });
+        }
+
+        const updateFields = {
+            lastUpdatedOn: new Date(),
+            lastUpdatedBy: req.auth
+        };
+
+        const changedFields = {};
+
+        if (version !== undefined) {
+            updateFields.version = version || null;
+            changedFields.version = version || null;
+        }
+
+        if (fixDate !== undefined) {
+            updateFields.fixDate = fixDate ? new Date(fixDate) : null;
+            changedFields.fixDate = fixDate ? new Date(fixDate) : null;
+        }
+
+        await db.collection('bugs').updateOne(
+            { _id: newId(bugId) },
+            { $set: updateFields }
+        );
+
+        await createEditRecord(req, 'bug', 'update', { bugId }, changedFields);
+
+        debugBug(`Bug version/fix date updated successfully with ID: ${bugId}`);
+        res.status(200).json({ message: `Bug ${bugId} version/fix date updated!`, bugId });
     } catch (err) {
         next(err);
     }

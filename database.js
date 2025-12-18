@@ -13,10 +13,24 @@ async function connect() {
     if (!_db) {
         const dbUrl = process.env.DB_URL;
         const dbName = process.env.DB_NAME;
-        const client = await MongoClient.connect(dbUrl);
-        _db = client.db(dbName);
-        console.log(`Connected to database: ${dbName}`);
-        debugDb('Connected.');
+        
+        if (!dbUrl) {
+            throw new Error('DB_URL environment variable is not set');
+        }
+        if (!dbName) {
+            throw new Error('DB_NAME environment variable is not set');
+        }
+        
+        try {
+            const client = await MongoClient.connect(dbUrl);
+            _db = client.db(dbName);
+            console.log(`Connected to database: ${dbName}`);
+            debugDb('Connected.');
+        } catch (err) {
+            console.error('Database connection error:', err.message);
+            debugDb('Connection failed:', err);
+            throw new Error(`Failed to connect to database: ${err.message}`);
+        }
     }
     return _db;
 }

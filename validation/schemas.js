@@ -36,7 +36,7 @@ export const updateBugSchema = Joi.object({
 }).min(1);
 
 export const classifyBugSchema = Joi.object({
-    classification: Joi.string().valid('unclassified', 'bug', 'feature', 'enhancement', 'documentation').required()
+    classification: Joi.string().valid('unclassified', 'approved', 'unapproved', 'duplicate').required()
 });
 
 export const assignBugSchema = Joi.object({
@@ -61,4 +61,14 @@ export const createTestSchema = Joi.object({
 
 export const updateTestSchema = Joi.object({
     status: Joi.string().valid('passed', 'failed').required()
+});
+
+export const createTimeEntrySchema = Joi.object({
+    hours: Joi.number().positive().required(),
+    description: Joi.string().optional().allow('')
+});
+
+export const updateBugVersionSchema = Joi.object({
+    version: Joi.string().optional().allow(''),
+    fixDate: Joi.date().optional().allow(null)
 });

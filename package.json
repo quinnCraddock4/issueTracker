@@ -13,6 +13,9 @@
     "create-admin": "node create-admin-user.js",
     "test:search": "node test-search-endpoints.js"
   },
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "dependencies": {
     "@radix-ui/react-checkbox": "^1.3.3",
     "@radix-ui/react-label": "^2.1.7",

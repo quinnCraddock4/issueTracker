@@ -61,26 +61,50 @@ export const authenticateToken = async (req, res, next) => {
 };
 
 export const createSession = async (user) => {
-    const db = await connect();
+    try {
+        console.log('[CREATE-SESSION] Starting, user object:', { hasId: !!user?._id, hasEmail: !!user?.email });
+        
+        if (!user || !user._id) {
+            console.error('[CREATE-SESSION] Invalid user object:', user);
+            throw new Error('Invalid user object: missing _id');
+        }
 
-    const sessionId = crypto.randomBytes(32).toString('hex');
+        console.log('[CREATE-SESSION] Connecting to database...');
+        const db = await connect();
+        console.log('[CREATE-SESSION] Database connected');
 
-    const expiresAt = new Date();
-    expiresAt.setHours(expiresAt.getHours() + 24);
+        const sessionId = crypto.randomBytes(32).toString('hex');
 
-    const session = {
-        sessionId: sessionId,
-        userId: user._id.toString(),
-        email: user.email,
-        role: user.role,
-        createdAt: new Date(),
-        expiresAt: expiresAt,
-        lastAccessedAt: new Date()
-    };
+        const expiresAt = new Date();
+        expiresAt.setHours(expiresAt.getHours() + 24);
 
-    await db.collection('sessions').insertOne(session);
+        // Ensure _id is converted to string safely
+        const userId = user._id.toString ? user._id.toString() : String(user._id);
 
-    return sessionId;
+        const session = {
+            sessionId: sessionId,
+            userId: userId,
+            email: user.email || '',
+            role: user.role || [],
+            createdAt: new Date(),
+            expiresAt: expiresAt,
+            lastAccessedAt: new Date()
+        };
+
+        console.log('[CREATE-SESSION] Inserting session into database...');
+        await db.collection('sessions').insertOne(session);
+        console.log('[CREATE-SESSION] Session inserted successfully for user:', userId);
+        debugAuth(`Session created for user: ${userId}`);
+
+        return sessionId;
+    } catch (err) {
+        console.error('[CREATE-SESSION] Error:', err);
+        console.error('[CREATE-SESSION] Error type:', err?.constructor?.name);
+        console.error('[CREATE-SESSION] Error message:', err?.message);
+        console.error('[CREATE-SESSION] Error stack:', err?.stack);
+        debugAuth('Error in createSession:', err);
+        throw err;
+    }
 };
 
 export const updateSession = async (sessionId) => {
